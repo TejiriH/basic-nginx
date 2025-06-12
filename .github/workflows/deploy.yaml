@@ -1,0 +1,36 @@
+name: Deploy NGINX Docker Site
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up SSH
+      uses: webfactory/ssh-agent@v0.9.0
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+    - name: Copy files to server
+      run: |
+        ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+          rm -rf ~/basic-nginx
+        EOF
+
+        scp -r ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:~/basic-nginx
+
+    - name: Build and run Docker container on server
+      run: |
+        ssh ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+          cd ~/basic-nginx
+          docker build -t my-nginx-site .
+          docker stop my-nginx-container || true
+          docker rm my-nginx-container || true
+          docker run -d --name my-nginx-container -p 80:80 my-nginx-site
+        EOF
